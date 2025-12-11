@@ -1,4 +1,5 @@
 from django.db import transaction
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
@@ -13,6 +14,9 @@ from .serializers import (
 from users.models import ConfirmationCode, CustomUser
 import random
 import string
+from rest_framework_simplejwt.views import TokenObtainPairView
+from users.serializers import CustomTokenObtainPairSerializer
+
 
 class AuthorizationAPIView(CreateAPIView):
     serializer_class = AuthValidateSerializer
@@ -38,6 +42,7 @@ class AuthorizationAPIView(CreateAPIView):
             data={'error': 'Неверные учетные данные!'}
         )
 
+
 class RegistrationAPIView(CreateAPIView):
     serializer_class = RegisterValidateSerializer
 
@@ -48,16 +53,19 @@ class RegistrationAPIView(CreateAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         phone_number = serializer.validated_data.get('phone_number', '')
+        birthdate = serializer.validated_data.get('birthdate', None)
 
         with transaction.atomic():
             user = CustomUser.objects.create_user(
                 email=email,
                 password=password,
                 phone_number=phone_number,
+                birthdate=birthdate,
                 is_active=False
             )
 
             code = ''.join(random.choices(string.digits, k=6))
+
             confirmation_code = ConfirmationCode.objects.create(
                 user=user,
                 code=code
@@ -70,6 +78,7 @@ class RegistrationAPIView(CreateAPIView):
                 'confirmation_code': code
             }
         )
+
 
 class ConfirmUserAPIView(CreateAPIView):
     serializer_class = ConfirmationSerializer
@@ -86,6 +95,7 @@ class ConfirmUserAPIView(CreateAPIView):
             user.save()
 
             token, _ = Token.objects.get_or_create(user=user)
+
             ConfirmationCode.objects.filter(user=user).delete()
 
         return Response(
@@ -95,3 +105,7 @@ class ConfirmUserAPIView(CreateAPIView):
                 'key': token.key
             }
         )
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
