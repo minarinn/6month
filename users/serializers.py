@@ -56,3 +56,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         token["birthdate"] = str(user.birthdate) if user.birthdate else None
         return token
+    
+class OAuthCodeSerializer(serializers.Serializer):
+    code = serializers.CharField()
