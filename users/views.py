@@ -117,3 +117,11 @@ class ConfirmUserAPIView(CreateAPIView):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+from users.tasks import manual_task
+
+
+class TestCeleryAPIView(APIView):
+    def get(self, request):
+        manual_task.delay('Daria')
+        return Response({'status': 'task sent'})
