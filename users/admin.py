@@ -1,5 +1,5 @@
 from django.contrib import admin
-from users.models import CustomUser, ConfirmationCode
+from users.models import CustomUser
 from django.contrib.auth.admin import UserAdmin
 
 
@@ -25,9 +25,3 @@ class CustomUserAdmin(UserAdmin):
     )
     
     readonly_fields = ("last_login",)
-
-
-@admin.register(ConfirmationCode)
-class ConfirmationCodeAdmin(admin.ModelAdmin):
-    list_display = ("user", "code", "created_at")
-    ordering = ("-created_at",)

@@ -11,7 +11,8 @@ from .serializers import (
     AuthValidateSerializer,
     ConfirmationSerializer
 )
-from users.models import ConfirmationCode, CustomUser
+from users.models import CustomUser
+from common.redis_utils import RedisConfirmationCode
 import random
 import string
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -55,21 +56,17 @@ class RegistrationAPIView(CreateAPIView):
         phone_number = serializer.validated_data.get('phone_number', '')
         birthdate = serializer.validated_data.get('birthdate', None)
 
-        with transaction.atomic():
-            user = CustomUser.objects.create_user(
-                email=email,
-                password=password,
-                phone_number=phone_number,
-                birthdate=birthdate,
-                is_active=False
-            )
+        user = CustomUser.objects.create_user(
+            email=email,
+            password=password,
+            phone_number=phone_number,
+            birthdate=birthdate,
+            is_active=False
+        )
 
-            code = ''.join(random.choices(string.digits, k=6))
-
-            confirmation_code = ConfirmationCode.objects.create(
-                user=user,
-                code=code
-            )
+        code = ''.join(random.choices(string.digits, k=6))
+        
+        RedisConfirmationCode.set_code(user.id, code, timeout=300)
 
         return Response(
             status=status.HTTP_201_CREATED,
@@ -88,15 +85,26 @@ class ConfirmUserAPIView(CreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         user_id = serializer.validated_data['user_id']
+        code = serializer.validated_data['code']
 
-        with transaction.atomic():
+        try:
             user = CustomUser.objects.get(id=user_id)
-            user.is_active = True
-            user.save()
+        except CustomUser.DoesNotExist:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={'error': 'Пользователь не найден!'}
+            )
 
-            token, _ = Token.objects.get_or_create(user=user)
+        if not RedisConfirmationCode.verify_code(user_id, code):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data={'error': 'Неверный или истёкший код подтверждения!'}
+            )
 
-            ConfirmationCode.objects.filter(user=user).delete()
+        user.is_active = True
+        user.save()
+
+        token, _ = Token.objects.get_or_create(user=user)
 
         return Response(
             status=status.HTTP_200_OK,
